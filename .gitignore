@@ -44,3 +44,6 @@ coverage/
 # yarn.lock
 
 .claude/settings.local.json
+
+# TaskCLI data created while trying the CLI locally
+.task/
