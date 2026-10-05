@@ -7,6 +7,7 @@ import { registerDoneCommand } from './commands/doneCommand.js';
 import { registerHookCommand } from './commands/hookCommand.js';
 import { registerInitCommand } from './commands/initCommand.js';
 import { registerListCommand } from './commands/listCommand.js';
+import { registerSearchCommand } from './commands/searchCommand.js';
 import { registerShowCommand } from './commands/showCommand.js';
 import { registerStartCommand } from './commands/startCommand.js';
 import { EXIT_FAILURE, EXIT_SUCCESS, handleError } from './errorHandler.js';
@@ -48,6 +49,7 @@ export function createProgram(options: RunOptions): Command {
     registerInitCommand,
     registerAddCommand,
     registerListCommand,
+    registerSearchCommand,
     registerShowCommand,
     registerStartCommand,
     registerDoneCommand,

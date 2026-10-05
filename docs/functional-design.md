@@ -232,6 +232,12 @@ interface CreateTaskInput {
 
 interface ListOptions {
   includeArchived: boolean;
+  statuses?: readonly TaskStatus[];  // 指定時はこのステータスのみ返す(archived を含めば includeArchived に関係なく返す。空配列は未指定扱い)
+}
+
+interface ListResult {
+  tasks: Task[];
+  hiddenArchivedCount: number;  // 一覧から除外したアーカイブ済みタスクの件数(0件時の案内用)
 }
 
 interface StartTaskOptions {
@@ -249,7 +255,8 @@ class TaskService {
 
   createTask(input: CreateTaskInput): Promise<Task>;
   getTask(id: number): Promise<Task>;                  // 見つからなければ TaskNotFoundError
-  listTasks(options: ListOptions): Promise<Task[]>;
+  listTasks(options: ListOptions): Promise<ListResult>;
+  searchTasks(keyword: string, options: ListOptions): Promise<ListResult>;  // 空キーワードは ValidationError
   deleteTask(id: number): Promise<Task>;               // 削除したタスクを返す
   startTask(id: number, options: StartTaskOptions): Promise<StartTaskResult>;
   completeTask(id: number): Promise<Task>;
@@ -581,7 +588,8 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `task init` | - | - | `✓ .task/ を初期化しました` / `既に初期化されています` | 書き込み権限なし |
 | `task add <title>` | タイトル | `-d, --description <text>` | `✓ タスク #<id> を作成しました: <title>` | タイトル不正 |
-| `task list` | - | `-a, --all` | 一覧表 / 0件メッセージ | データ破損 |
+| `task list` | - | `-a, --all`, `-s, --status <statuses>` | 一覧表 / 0件メッセージ | 不正なステータス、データ破損 |
+| `task search <keyword...>` | 検索キーワード | `-a, --all`, `-s, --status <statuses>` | 一覧表 / `"<keyword>" に一致するタスクはありません` | 空キーワード、不正なステータス |
 | `task show <id>` | ID | - | 詳細表示 | ID不正、見つからない |
 | `task start <id>` | ID | `-b, --branch <name>` | `✓ タスク #<id> を開始しました(ブランチ: <name>)` | 遷移不可、ブランチ名不正、Git操作失敗 |
 | `task done <id>` | ID | - | `✓ タスク #<id> を完了しました` | 遷移不可 |
@@ -593,8 +601,12 @@ stateDiagram-v2
 
 **ID引数の検証**: 正の整数(`/^[1-9]\d*$/`)以外は「タスクIDは正の整数で指定してください: <入力値>」とする。`#1` 形式も受け付け、先頭の `#` を除去して解釈する。
 
+**`--status` の検証**: カンマ区切りで複数指定できる(`open,in_progress`)。前後の空白・空要素は無視し、`TASK_STATUSES` 以外の値は「不正なステータスです: <値>」(ヒント: 有効な値の一覧)とする。
+
+**検索の一致条件**: タイトルと説明を NFKC 正規化 + 小文字化して部分一致で判定する(大文字小文字・全角半角を区別しない)。空白区切りの複数キーワードはすべてを含むタスクに一致する(AND)。正規表現は使わない。既定ではアーカイブ済みを除外し、`--all` で含める。
+
 **終了コード**:
-- `0`: 成功(削除確認でキャンセルした場合も含む)
+- `0`: 成功(削除確認でキャンセルした場合、絞り込み・検索の結果が0件の場合も含む)
 - `1`: ユーザー入力エラー・実行時エラー
 
 ## アルゴリズム設計
@@ -702,6 +714,8 @@ Windowsで `rename` 先が他プロセスに開かれていて失敗する場合
 ```
 
 `--all` を付けずに表示した結果が0件で、アーカイブ済みタスクが存在する場合は、`(アーカイブ済みのタスクが N 件あります。--all で表示できます)` を追記する。
+
+`--status` 指定時の0件は `条件に一致するタスクはありません` とする(ステータスを明示しているため、アーカイブ済みの案内は出さない)。`task search` の結果も同じ表形式で表示し、0件の場合は `"<キーワード>" に一致するタスクはありません` と、キーワードに一致したが除外したアーカイブ済みタスクの案内を表示する。
 
 ### 詳細表示(`task show`)
 
@@ -843,7 +857,7 @@ Commander.js の類似コマンド提案機能を有効にし、メッセージ�
 ### ユニットテスト
 - **StatusTransitionPolicy**: 遷移表の全12パターン(4ステータス × 3アクション)
 - **BranchNameGenerator**: 英語・日本語のみ・混在・全角英数字・記号のみ・50文字超過・先頭末尾記号のタイトル、不正なユーザー指定名
-- **TaskService**: 作成・取得・一覧(アーカイブ除外/`--all`)・削除(ID非再利用)・開始・完了・アーカイブ。GitClient と TaskRepository はテストダブルに差し替え、Git失敗時にデータが保存されないことを検証する
+- **TaskService**: 作成・取得・一覧(アーカイブ除外/`--all`/ステータス絞り込み)・検索・削除(ID非再利用)・開始・完了・アーカイブ。GitClient と TaskRepository はテストダブルに差し替え、Git失敗時にデータが保存されないことを検証する
 - **TablePresenter**: 全角文字の列揃え、タイトル切り詰め、現在ブランチのマーカー、色あり/なし
 - **CommitHookService**: トレーラー追記、重複追記しないこと、merge/squash 時に追記しないこと、紐付くタスクがない場合
 - **JsonFileStorage**: 書き込み後の内容、`.bak` の作成、破損ファイルの検知、スキーマ検証
@@ -864,4 +878,5 @@ Commander.js の類似コマンド提案機能を有効にし、メッセージ�
 - エラーフロー: 存在しないID、不正なタイトル、不明なコマンド(類似コマンド提案)、破損した tasks.json
 - 削除の確認プロンプト: `y` で削除、`n` / 空入力でキャンセル、`--force` で確認なし
 - 出力: パイプ時に色が付かないこと、`NO_COLOR` で色が付かないこと
-- パフォーマンス: タスク1,000件のデータで `task list` が1秒以内に完了すること
+- 絞り込み・検索: `list --status`、`search`(全角半角・大文字小文字の同一視、`--all` の案内)、不正なステータスの終了コード
+- パフォーマンス: タスク1,000件のデータで `task list` / `task search` が1秒以内に完了すること

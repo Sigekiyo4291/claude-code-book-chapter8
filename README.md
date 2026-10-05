@@ -50,6 +50,8 @@ npm link        # task コマンドが使えるようになります
 ```bash
 task add "ユーザー認証機能の実装"      # タスクを追加
 task list                             # 一覧(--all でアーカイブ済みも表示)
+task list --status in_progress        # ステータスで絞り込み(open,in_progress のように複数指定可)
+task search 認証                      # タイトル・説明をキーワード検索(大文字小文字・全角半角を区別しない)
 task start 1                          # feature/task-1 ブランチを作成して作業開始
 task done 1                           # 完了
 task archive 1                        # 一覧から外す

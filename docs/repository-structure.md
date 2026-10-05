@@ -61,6 +61,8 @@ claude-code-book-chapter8/
 - `commandDependencies.ts`: 各コマンドが受け取る依存(`output`・`prompt`・`createContext`)の型
 - `errorHandler.ts`: `TaskCliError` を `✗ message` / `hint` 形式で表示し、予期しない例外を処理する
 - `parseTaskId.ts`: ID引数(`1` / `#1`)を正の整数に変換する
+- `parseStatusFilter.ts`: `--status` の値(`open,in_progress`)をステータスの配列に変換する
+- `renderTaskListResult.ts`: `task list` / `task search` の結果(一覧表または0件メッセージ)を出力する
 
 **依存関係**:
 - 依存可能: `services/`、`domain/`、`infra/`・`repositories/`(**`context.ts` からのみ**)
@@ -83,6 +85,7 @@ src/cli/commands/
 ├── initCommand.ts
 ├── addCommand.ts
 ├── listCommand.ts
+├── searchCommand.ts
 ├── showCommand.ts
 ├── startCommand.ts
 ├── doneCommand.ts
@@ -115,7 +118,8 @@ src/cli/commands/
 **役割**: サービスレイヤー。ユースケースとビジネスルールを実装する
 
 **配置ファイル**:
-- `TaskService.ts`: タスクのCRUD・開始・完了・アーカイブ
+- `TaskService.ts`: タスクのCRUD・一覧の絞り込み・検索・開始・完了・アーカイブ
+- `matchKeywords.ts`: 検索キーワードの正規化と一致判定を行う純粋関数
 - `StatusTransitionPolicy.ts`: ステータス遷移表
 - `BranchNameGenerator.ts`: ブランチ名の生成・検証
 - `CommitHookService.ts`: フックの導入・削除、コミットメッセージへのトレーラー追記
@@ -138,6 +142,8 @@ src/services/
 ├── StatusTransitionPolicy.ts
 ├── BranchNameGenerator.ts
 ├── CommitHookService.ts
+├── appendTrailer.ts
+├── matchKeywords.ts
 ├── Clock.ts
 └── ports.ts
 ```
@@ -192,12 +198,14 @@ src/services/
 tests/unit/
 ├── cli/
 │   ├── parseTaskId.test.ts
+│   ├── parseStatusFilter.test.ts
 │   └── presenters/
 │       └── TablePresenter.test.ts
 ├── services/
 │   ├── TaskService.test.ts
 │   ├── StatusTransitionPolicy.test.ts
 │   ├── BranchNameGenerator.test.ts
+│   ├── matchKeywords.test.ts
 │   └── CommitHookService.test.ts
 ├── repositories/
 │   └── TaskRepository.test.ts
@@ -413,14 +421,15 @@ TaskCLIが**利用者のリポジトリ**に作成するファイル(本リポ�
 
 ### P1機能の想定配置
 
+タスクの絞り込み・検索(`searchCommand.ts` + `TaskService.searchTasks()`)は実装済み。並び替え(`--sort`)などで条件が増え TaskService が肥大化した場合は、一覧取得の処理を `TaskQueryService` に分離する。
+
 ```
 src/
 ├── cli/commands/
-│   ├── searchCommand.ts           # タスク検索
 │   ├── importCommand.ts           # GitHub Issues のインポート
 │   └── syncCommand.ts             # GitHub 同期
 ├── services/
-│   ├── TaskQueryService.ts        # 絞り込み・並び替え・検索
+│   ├── TaskQueryService.ts        # 絞り込み・並び替え・検索(肥大化した場合に分離)
 │   └── GitHubSyncService.ts
 └── infra/
     └── github/

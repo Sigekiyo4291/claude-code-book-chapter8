@@ -48,4 +48,21 @@ describe('性能(E2E)', () => {
     const median = [...durations].sort((a, b) => a - b)[1] ?? Infinity;
     expect(median).toBeLessThan(LIST_LIMIT_MS);
   });
+
+  it(`タスク${TASK_COUNT}件の task search が ${LIST_LIMIT_MS}ms 以内に完了する`, async () => {
+    const durations: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const startedAt = performance.now();
+      const result = await runCli(['search', 'タスク', '-s', 'completed'], {
+        cwd: repoDir,
+      });
+      durations.push(performance.now() - startedAt);
+      expect(result.stdout.trimEnd().split('\n')).toHaveLength(
+        TASK_COUNT / 4 + 1
+      );
+    }
+
+    const median = [...durations].sort((a, b) => a - b)[1] ?? Infinity;
+    expect(median).toBeLessThan(LIST_LIMIT_MS);
+  });
 });

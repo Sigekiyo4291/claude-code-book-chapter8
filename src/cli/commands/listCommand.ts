@@ -1,9 +1,7 @@
 import type { Command } from 'commander';
-import {
-  createFormatter,
-  type CommandDependencies,
-} from '../commandDependencies.js';
-import { createTablePresenter } from '../presenters/TablePresenter.js';
+import type { CommandDependencies } from '../commandDependencies.js';
+import { parseStatusFilter } from '../parseStatusFilter.js';
+import { renderTaskListResult } from '../renderTaskListResult.js';
 
 export function registerListCommand(
   program: Command,
@@ -16,35 +14,32 @@ export function registerListCommand(
       'タスクの一覧を表示します(現在のブランチのタスクに * を付けます)'
     )
     .option('-a, --all', 'アーカイブ済みのタスクも表示します', false)
-    .action(async (options: { all: boolean }) => {
+    .option(
+      '-s, --status <statuses>',
+      '指定したステータスのタスクのみ表示します(カンマ区切りで複数指定)'
+    )
+    .addHelpText(
+      'after',
+      '\n例:\n  task list --status in_progress\n  task list -s open,in_progress'
+    )
+    .action(async (options: { all: boolean; status?: string }) => {
+      const statuses =
+        options.status === undefined
+          ? undefined
+          : parseStatusFilter(options.status);
       const context = await deps.createContext();
-      const [result, currentBranch] = await Promise.all([
-        context.taskService.listTasks({ includeArchived: options.all }),
-        context.workspace.isGitRepository
-          ? context.git.getCurrentBranch()
-          : Promise.resolve(undefined),
-      ]);
+      const result = await context.taskService.listTasks({
+        includeArchived: options.all,
+        statuses,
+      });
 
-      if (result.tasks.length === 0) {
-        const formatter = createFormatter(deps.output);
-        deps.output.writeOut(
-          formatter.info(
-            'タスクがありません。`task add "<タイトル>"` で追加できます'
-          )
-        );
-        if (result.hiddenArchivedCount > 0) {
-          deps.output.writeOut(
-            formatter.info(
-              `(アーカイブ済みのタスクが ${result.hiddenArchivedCount} 件あります。--all で表示できます)`
-            )
-          );
-        }
-        return;
-      }
-
-      const presenter = await createTablePresenter(deps.output.color);
-      deps.output.writeOut(
-        presenter.renderTaskList(result.tasks, { currentBranch })
+      await renderTaskListResult(
+        context,
+        deps.output,
+        result,
+        statuses === undefined
+          ? 'タスクがありません。`task add "<タイトル>"` で追加できます'
+          : '条件に一致するタスクはありません'
       );
     });
 }

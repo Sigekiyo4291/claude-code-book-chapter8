@@ -89,6 +89,7 @@ describe('run', () => {
         'init',
         'add',
         'list',
+        'search',
         'show',
         'start',
         'done',
@@ -195,6 +196,110 @@ describe('run', () => {
       await execute('list');
 
       expect(output.stdout).not.toContain('* 1');
+    });
+
+    it('--status で指定したステータスのタスクのみ表示する', async () => {
+      const { execute, output } = setup({
+        tasks: [
+          buildTask({ id: 1, title: 'open task' }),
+          buildTask({ id: 2, title: 'doing', status: 'in_progress' }),
+          buildTask({ id: 3, title: 'old', status: 'archived' }),
+        ],
+      });
+
+      expect(await execute('list', '--status', 'in_progress')).toBe(0);
+      expect(output.stdout).toContain('doing');
+      expect(output.stdout).not.toContain('open task');
+
+      expect(await execute('list', '-s', 'archived')).toBe(0);
+      expect(output.stdout).toContain('old');
+    });
+
+    it('--status で該当がない場合、条件に一致しない旨を表示する', async () => {
+      const { execute, output } = setup({
+        tasks: [buildTask({ id: 1 })],
+      });
+
+      expect(await execute('list', '--status', 'completed')).toBe(0);
+      expect(output.stdout).toBe('条件に一致するタスクはありません\n');
+    });
+
+    it('不正なステータスの場合、有効な値を案内し 1 を返す', async () => {
+      const { execute, output } = setup();
+
+      expect(await execute('list', '--status', 'done')).toBe(1);
+      expect(output.stderr).toContain('✗ 不正なステータスです: done');
+      expect(output.stderr).toContain(
+        '有効な値: open, in_progress, completed, archived'
+      );
+    });
+  });
+
+  describe('search', () => {
+    const tasks = [
+      buildTask({ id: 1, title: 'ユーザー認証', branch: 'feature/task-1' }),
+      buildTask({ id: 2, title: 'ログイン画面', description: 'API 認証' }),
+      buildTask({ id: 3, title: '認証ログ', status: 'archived' }),
+      buildTask({ id: 4, title: 'README 更新' }),
+    ];
+
+    it('キーワードに一致するタスクを表で表示し、現在のブランチに * を付ける', async () => {
+      const { execute, output } = setup({
+        tasks,
+        git: { currentBranch: 'feature/task-1' },
+      });
+
+      expect(await execute('search', '認証')).toBe(0);
+
+      expect(output.stdout).toContain('* 1');
+      expect(output.stdout).toContain('ログイン画面');
+      expect(output.stdout).not.toContain('認証ログ');
+      expect(output.stdout).not.toContain('README');
+    });
+
+    it('クォートなしの複数語を AND 条件で検索し、--status と併用できる', async () => {
+      const { execute, output } = setup({ tasks });
+
+      expect(await execute('search', 'api', '認証', '-s', 'open')).toBe(0);
+
+      expect(output.stdout).toContain('ログイン画面');
+      expect(output.stdout).not.toContain('ユーザー認証');
+    });
+
+    it('--all でアーカイブ済みも検索する', async () => {
+      const { execute, output } = setup({ tasks });
+
+      await execute('search', '認証ログ', '--all');
+
+      expect(output.stdout).toContain('認証ログ');
+    });
+
+    it('一致しない場合、キーワードと除外したアーカイブ済みの件数を案内する', async () => {
+      const { execute, output } = setup({ tasks });
+
+      expect(await execute('search', 'ログ')).toBe(0);
+      expect(output.stdout).toContain('ログイン画面');
+
+      expect(await execute('search', '認証ログ')).toBe(0);
+      expect(output.stdout).toContain(
+        '"認証ログ" に一致するタスクはありません'
+      );
+      expect(output.stdout).toContain('アーカイブ済みのタスクが 1 件あります');
+    });
+
+    it('キーワードが空白のみの場合、1 を返す', async () => {
+      const { execute, output } = setup({ tasks });
+
+      expect(await execute('search', ' ')).toBe(1);
+      expect(await execute('search', '')).toBe(1);
+      expect(output.stderr).toContain('検索キーワードを指定してください');
+    });
+
+    it('キーワードがない場合、1 を返す', async () => {
+      const { execute, output } = setup();
+
+      expect(await execute('search')).toBe(1);
+      expect(output.stderr).toContain('必須の引数が指定されていません');
     });
   });
 

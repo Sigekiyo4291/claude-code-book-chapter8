@@ -9,6 +9,7 @@ import {
 import { TaskNotFoundError, ValidationError } from '../domain/errors.js';
 import type { BranchNameGenerator } from './BranchNameGenerator.js';
 import type { Clock } from './Clock.js';
+import { matchesKeywords, splitKeywords } from './matchKeywords.js';
 import type { GitPort, TaskRepositoryPort } from './ports.js';
 import type {
   StatusTransitionPolicy,
@@ -22,6 +23,12 @@ export interface CreateTaskInput {
 
 export interface ListOptions {
   includeArchived: boolean;
+  /**
+   * 指定した場合、このステータスのタスクのみ返す。
+   * archived を含む場合は includeArchived に関係なくアーカイブ済みも返す
+   * 空配列は未指定として扱う
+   */
+  statuses?: readonly TaskStatus[];
 }
 
 export interface ListResult {
@@ -97,16 +104,27 @@ export class TaskService {
   }
 
   async listTasks(options: ListOptions): Promise<ListResult> {
-    const store = await this.deps.repository.load();
-    const sorted = [...store.tasks].sort((a, b) => a.id - b.id);
-    if (options.includeArchived) {
-      return { tasks: sorted, hiddenArchivedCount: 0 };
+    return this.queryTasks(() => true, options);
+  }
+
+  /**
+   * タイトルまたは説明に、空白区切りのキーワードをすべて含むタスクを返す。
+   * 大文字小文字・全角半角は区別しない。
+   *
+   * @throws {ValidationError} キーワードが空の場合
+   */
+  async searchTasks(
+    keyword: string,
+    options: ListOptions
+  ): Promise<ListResult> {
+    const keywords = splitKeywords(keyword);
+    if (keywords.length === 0) {
+      throw new ValidationError(
+        '検索キーワードを指定してください',
+        '例: task search 認証'
+      );
     }
-    const visible = sorted.filter((task) => task.status !== 'archived');
-    return {
-      tasks: visible,
-      hiddenArchivedCount: sorted.length - visible.length,
-    };
+    return this.queryTasks((task) => matchesKeywords(task, keywords), options);
   }
 
   /**
@@ -184,6 +202,31 @@ export class TaskService {
     return (
       candidates.find((task) => task.status === 'in_progress') ?? candidates[0]
     );
+  }
+
+  private async queryTasks(
+    predicate: (task: Task) => boolean,
+    options: ListOptions
+  ): Promise<ListResult> {
+    const store = await this.deps.repository.load();
+    const matched = store.tasks.filter(predicate).sort((a, b) => a.id - b.id);
+
+    const { statuses } = options;
+    if (statuses !== undefined && statuses.length > 0) {
+      // ステータスを明示的に選んでいるため、アーカイブ済みの除外件数は案内しない
+      return {
+        tasks: matched.filter((task) => statuses.includes(task.status)),
+        hiddenArchivedCount: 0,
+      };
+    }
+    if (options.includeArchived) {
+      return { tasks: matched, hiddenArchivedCount: 0 };
+    }
+    const visible = matched.filter((task) => task.status !== 'archived');
+    return {
+      tasks: visible,
+      hiddenArchivedCount: matched.length - visible.length,
+    };
   }
 
   private async transition(id: number, action: TaskAction): Promise<Task> {

@@ -188,7 +188,7 @@ TaskCLIは常駐プロセスを持たず、1コマンド = 1プロセスで実�
 | 操作 | 実行するgitコマンド | 使用箇所 |
 |------|-------------------|---------|
 | リポジトリルート取得 | `git rev-parse --show-toplevel` | 全コマンドの Workspace 解決 |
-| 現在ブランチ取得 | `git symbolic-ref --short -q HEAD` | `task list`(マーカー表示)、フック |
+| 現在ブランチ取得 | `git symbolic-ref --short -q HEAD` | `task list` / `task search`(マーカー表示)、フック |
 | ブランチ存在確認 | `git show-ref --verify --quiet refs/heads/<name>` | `task start` |
 | ブランチ作成・切り替え | `git checkout -b <name>` / `git checkout <name>` | `task start` |
 | ブランチ名検証 | `git check-ref-format --branch <name>` | `task start --branch` |
