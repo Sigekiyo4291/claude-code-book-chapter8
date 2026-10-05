@@ -249,7 +249,7 @@ ID  Status       Title                      Branch
 
 `task list --status in_progress` によるステータス絞り込み、`task search "認証"` によるタイトル・説明の全文検索。
 
-**優先度**: P1(重要)
+**優先度**: P1(重要) — **実装済み**(2026-10-06。仕様は [functional-design.md](./functional-design.md) の API設計を参照)
 
 #### 9. 優先度と期限の管理
 

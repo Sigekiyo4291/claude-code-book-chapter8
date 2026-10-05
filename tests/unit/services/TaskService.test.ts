@@ -189,6 +189,115 @@ describe('TaskService', () => {
       expect(result.tasks.map((task) => task.id)).toEqual([1, 2, 3]);
       expect(result.hiddenArchivedCount).toBe(0);
     });
+
+    it('statuses を指定した場合、そのステータスのみ返し、除外件数は 0 とする', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.listTasks({
+        includeArchived: false,
+        statuses: ['open', 'completed'],
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([1, 3]);
+      expect(result.hiddenArchivedCount).toBe(0);
+    });
+
+    it('statuses に archived を含む場合、includeArchived なしでも返す', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.listTasks({
+        includeArchived: false,
+        statuses: ['archived'],
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([2]);
+    });
+
+    it('statuses が空配列の場合、未指定として扱う', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.listTasks({
+        includeArchived: false,
+        statuses: [],
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([1, 3]);
+      expect(result.hiddenArchivedCount).toBe(1);
+    });
+  });
+
+  describe('searchTasks', () => {
+    const tasks = [
+      buildTask({ id: 1, title: 'ユーザー認証の実装' }),
+      buildTask({
+        id: 2,
+        title: 'ログイン画面',
+        description: 'API 認証を呼ぶ',
+      }),
+      buildTask({ id: 3, title: '認証ログの整理', status: 'archived' }),
+      buildTask({ id: 4, title: 'README 更新', status: 'completed' }),
+    ];
+
+    it('タイトルまたは説明にキーワードを含むタスクを ID 昇順で返す', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.searchTasks('認証', {
+        includeArchived: false,
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([1, 2]);
+      expect(result.hiddenArchivedCount).toBe(1);
+    });
+
+    it('複数キーワードはすべてを含むタスクのみ返し、全角英字も一致する', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.searchTasks('認証　ａｐｉ', {
+        includeArchived: false,
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([2]);
+    });
+
+    it('includeArchived の場合、アーカイブ済みも返す', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.searchTasks('認証', {
+        includeArchived: true,
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([1, 2, 3]);
+      expect(result.hiddenArchivedCount).toBe(0);
+    });
+
+    it('statuses と併用できる', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.searchTasks('readme', {
+        includeArchived: false,
+        statuses: ['completed'],
+      });
+
+      expect(result.tasks.map((task) => task.id)).toEqual([4]);
+    });
+
+    it('一致しない場合、空の結果を返す', async () => {
+      const { service } = setup({ tasks });
+
+      const result = await service.searchTasks('存在しない', {
+        includeArchived: false,
+      });
+
+      expect(result).toEqual({ tasks: [], hiddenArchivedCount: 0 });
+    });
+
+    it('キーワードが空白のみの場合、ValidationError を送出する', async () => {
+      const { service } = setup({ tasks });
+
+      await expect(
+        service.searchTasks('  ', { includeArchived: false })
+      ).rejects.toThrow(ValidationError);
+    });
   });
 
   describe('deleteTask', () => {
