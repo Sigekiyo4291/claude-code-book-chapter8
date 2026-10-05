@@ -1,27 +1,46 @@
 {
-  "name": "claude-code-book-chapter8",
+  "name": "taskcli",
   "version": "0.1.0",
-  "description": "Claude Code book - Chapter 8 template",
+  "description": "Gitと一体化した開発者向けタスク管理CLIツール",
   "type": "module",
+  "bin": {
+    "task": "dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "prepare": "husky",
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint .",
     "format": "npx prettier --write .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run --project core",
+    "test:watch": "vitest --project core",
+    "test:coverage": "vitest run --project core --coverage",
+    "test:e2e": "npm run build && vitest run --project e2e",
     "test:ui": "vitest --ui"
   },
   "keywords": [
-    "spec-driven-development",
-    "claude-code",
-    "template"
+    "cli",
+    "task",
+    "git",
+    "todo"
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "picocolors": "^1.1.1",
+    "simple-git": "^3.36.0",
+    "string-width": "^7.2.0"
+  },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@vitest/coverage-v8": "^2.0.0",

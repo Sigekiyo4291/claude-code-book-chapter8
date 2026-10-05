@@ -30,3 +30,44 @@ Visual Studio Codeで「Reopen in Container」を選択すると、自動的に�
 - Claude Codeの最新版インストール
 
 ※ Dev Containerを利用する際は、事前にDockerのインストールが必要です。
+
+## サンプルアプリケーション: TaskCLI
+
+本リポジトリには、スペック駆動開発で作成したサンプルアプリケーション **TaskCLI**(Gitと一体化した開発者向けタスク管理CLIツール)が含まれています。仕様は [docs/](docs/) を参照してください。
+
+### インストール
+
+Node.js 20 以降と Git 2.30 以降が必要です。
+
+```bash
+npm ci
+npm run build
+npm link        # task コマンドが使えるようになります
+```
+
+### 使い方
+
+```bash
+task add "ユーザー認証機能の実装"      # タスクを追加
+task list                             # 一覧(--all でアーカイブ済みも表示)
+task start 1                          # feature/task-1 ブランチを作成して作業開始
+task done 1                           # 完了
+task archive 1                        # 一覧から外す
+task show 1                           # 詳細
+task delete 1                         # 削除(確認あり。--force で確認なし)
+task hook install                     # コミットメッセージに "Task: #<id>" を自動追記
+task --help                           # すべてのコマンド
+```
+
+- タスクはリポジトリルートの `.task/tasks.json` に保存されます。Gitでコミットすればチームで共有できます
+- Gitリポジトリ外でも、ブランチ連携以外の機能は利用できます
+- `task hook install` で導入したフックは、`git commit -m` などメッセージを指定したコミットにトレーラーを追記します。エディタで空のメッセージから書き始める場合は、空メッセージによるコミット中止を妨げないよう追記しません
+
+### 開発
+
+```bash
+npm test             # ユニット・統合テスト
+npm run test:e2e     # ビルドして E2E テスト
+npm run lint
+npm run typecheck
+```
